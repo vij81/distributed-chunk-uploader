@@ -129,42 +129,68 @@ export async function resetUpload(req, res) {
 export async function finalizeUpload(req, res) {
   const { uploadId } = req.body;
 
+  if (!uploadId) return res.status(400).json({ error: "Missing uploadId" });
+
   const tmp = `uploads_tmp/${uploadId}.tmp`;
   const finalPath = `uploads_final/${uploadId}.zip`;
 
+  // 1️⃣ Validate existing row
   const [[row]] = await db.query("SELECT * FROM uploads WHERE id=?", [uploadId]);
+  if (!row) return res.status(404).json({ error: "Upload not found" });
 
+  // 2️⃣ Avoid duplicate finalize
   if (row.status === "COMPLETED") return sendPeek(finalPath, row.final_hash, res);
 
-  await db.query("UPDATE uploads SET status='PROCESSING' WHERE id=?", [uploadId]);
+  // 3️⃣ Ensure tmp file actually exists
+  if (!fs.existsSync(tmp)) {
+    await db.query("UPDATE uploads SET status='ERROR' WHERE id=?", [uploadId]);
+    return res.status(500).json({ error: "Upload incomplete – missing chunk tmp file" });
+  }
 
-  fs.renameSync(tmp, finalPath);
+  // 4️⃣ Ensure final directory exists
+  if (!fs.existsSync("uploads_final")) fs.mkdirSync("uploads_final");
 
+  // 5️⃣ Rename atomically inside try–catch
+  try {
+    fs.renameSync(tmp, finalPath);
+  } catch (err) {
+    console.error("❌ Rename failed:", err);
+    return res.status(500).json({ error: "Failed to finalize file" });
+  }
+
+  // 6️⃣ Hash safely
   const hash = crypto.createHash("sha256");
   const stream = fs.createReadStream(finalPath);
+
+  stream.on("error", async (err) => {
+    console.error("❌ Hash read error:", err);
+    await db.query("UPDATE uploads SET status='ERROR' WHERE id=?", [uploadId]);
+    return res.status(500).json({ error: "File hashing failed" });
+  });
+
   stream.on("data", d => hash.update(d));
+
   stream.on("end", async () => {
     const digest = hash.digest("hex");
-    await db.query("UPDATE uploads SET status='COMPLETED', final_hash=? WHERE id=?", [
-      digest,
-      uploadId
-    ]);
+
+    await db.query(
+      "UPDATE uploads SET status='COMPLETED', final_hash=? WHERE id=?",
+      [digest, uploadId]
+    );
+
     return sendPeek(finalPath, digest, res);
   });
 }
-
-// helper — ZIP peek
 function sendPeek(zipPath, hash, res) {
   const names = [];
 
-  // If file is missing or cannot open → return safe fallback
-  if (!fs.existsSync(zipPath)) {
+  if (!zipPath || !fs.existsSync(zipPath)) {
     return res.json({ hash, peek: [] });
   }
 
   yauzl.open(zipPath, { lazyEntries: true }, (err, zip) => {
     if (err || !zip) {
-      return res.json({ hash, peek: [] });       // 🛑 avoid undefined
+      return res.json({ hash, peek: [] });
     }
 
     zip.readEntry();
@@ -174,11 +200,11 @@ function sendPeek(zipPath, hash, res) {
     });
 
     zip.on("end", () => {
-      res.json({
-        hash,
-        peek: names.length > 0 ? names : []      // 🟢 guaranteed array
-      });
+      return res.json({ hash, peek: names });
+    });
+
+    zip.on("error", () => {
+      return res.json({ hash, peek: [] });
     });
   });
 }
-
