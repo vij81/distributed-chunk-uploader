@@ -1,0 +1,12 @@
+# Node
+node_modules/
+
+# Env secret
+backend/.env
+
+# Upload storag
+backend/uploads_tmp/
+backend/uploads_final/
+
+# Docker
+mysql-data/
