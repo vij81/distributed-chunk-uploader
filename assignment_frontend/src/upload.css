@@ -1,0 +1,28 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 30px);
+  gap: 4px;
+  max-width: 960px;
+}
+
+.cell {
+  width: 28px;
+  height: 28px;
+  background: lightgray;
+  text-align: center;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+.cell.success {
+  background: green;
+  color: white;
+}
+
+.cell.paused {
+  background: orange;
+}
+
+.cell.pending {
+  background: #ddd;
+}
