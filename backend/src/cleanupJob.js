@@ -13,4 +13,4 @@ setInterval(async () => {
     await db.query("DELETE FROM chunks WHERE upload_id=?", [row.id]);
     await db.query("DELETE FROM uploads WHERE id=?", [row.id]);
   }
-}, 1000 * 60 * 30); // every 30 minutes
+}, 1000 * 60 * 30);

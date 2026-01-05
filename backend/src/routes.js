@@ -6,6 +6,6 @@ const router = express.Router();
 router.post("/init", initUpload);
 router.post("/chunk", uploadChunk);
 router.post("/finalize", finalizeUpload);
-router.post("/reset", resetUpload);  // <-- new
+router.post("/reset", resetUpload); 
 
 export default router;

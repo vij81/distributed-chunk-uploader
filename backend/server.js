@@ -1,7 +1,7 @@
 import express from "express";
 import uploadRoutes from "./src/routes.js";
 import cors from "cors";
-import "dotenv/config";   // add this line on top
+import "dotenv/config"; 
 
 
 const app = express();
